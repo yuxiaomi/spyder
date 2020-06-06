@@ -1,0 +1,134 @@
+import requests,json,time
+import re,stat,lxml.html
+from bs4 import BeautifulSoup
+from lxml import etree
+import datetime
+import time
+import datetime
+
+# 输入汉字然后找到jd
+def jdfindurl(keys):
+    res = requests.get(
+        url="https://search.jd.com/Search?keyword=" + keys + "&enc=utf-8&",
+        headers={
+            'User-Agent': 'Mozilla/5.0(Macintosh;Intel Mac 05 X 10_11_4)AppleWebKit/537.36(KHTML,like Gecko)Chrome/52.0.2743.116 Safari/537.36'
+        })
+    re.encoding = 'utf-8'
+    soup = BeautifulSoup(res.text, 'lxml')
+    href=soup.find(name="li",class_="gl-item").find(name="div",class_="p-name p-name-type-2").select("a")[0].get("href")
+    hrefs="http:"+href
+    print("京东的链接：",hrefs)
+    hisprice(hrefs)
+
+def dateparse(local):
+    tuptime = time.localtime(local)
+    standartime = time.strftime("%Y-%m-%d", tuptime)
+    return standartime
+
+maxprice=None
+maxdate=None
+mindate=None
+minprice=None
+
+# 得到最高最低价格的地址然后搜索
+def maxminprice_list(id):
+    res = requests.get(
+        url='https://www.gwdang.com/trend/data_www?dp_id='+id+'&show_prom=true&v=2&get_coupon=1&price=',
+        headers={
+            'authority': 'www.gwdang.com',
+            'method': 'GET',
+            'User-Agent': 'Mozilla/5.0(Macintosh;Intel Mac 05 X 10_11_4)AppleWebKit/537.36(KHTML,like Gecko)Chrome/52.0.2743.116 Safari/537.36'}
+    )
+    text=json.loads(res.text)
+    if(text.get("series")[0] is not None):
+        series=text.get("series")[0]#这是json转换过后的第一个dict
+        # print(series)
+        global maxdate
+        global maxprice
+        global mindate
+        global minprice
+        maxprice=series["max"]/100
+        maxprice_date=series["max_stamp"]
+        maxdate=dateparse(maxprice_date)
+        # print("最高价格：",maxprice/100,"最高价格日期：",maxdate)
+
+        minprice=series["min"]/100
+        minprice_date=series["min_stamp"]
+        mindate=dateparse(minprice_date)
+        # print("最低价格",minprice/100,"最低价格日期",mindate)
+
+searchcom=[]
+#  找到历史价格页面
+def hisprice(url):
+    res = requests.get(
+        url="https://www.gwdang.com/trend?url="+url+"&days=60&crc64=1",
+        headers={
+            'User-Agent': 'Mozilla/5.0(Macintosh;Intel Mac 05 X 10_11_4)AppleWebKit/537.36(KHTML,like Gecko)Chrome/52.0.2743.116 Safari/537.36'})
+    # print(res.text)
+    soup = BeautifulSoup(res.text, 'lxml')
+    list = soup.find_all(name="div", class_="b2c")
+    num=0
+    temp=None
+    before="京东商城自营"
+    for item in list:
+    # 找到便签查找个数
+        flag=item.find(name="img",class_="site-icon").get("alt")
+        if(before==flag and num<3):
+            num=num+1
+            # print("输出第",num)
+            # print("循环中的before==flag", before, flag)
+            try:
+                href = item.find(name="div", class_="dp-img pic1").select("a")[0].get("href")
+                if (href.startswith('/union/go')):
+                    href = "https://www.gwdang.com/" + href
+            except Exception as e:
+                continue
+
+            try:
+                data_dp=item.find(name="div",class_="dp-item").get("data-dp-id")
+                # print(data_dp)
+                maxminprice_list(data_dp)
+            except Exception as e:
+                continue
+
+            try:
+                title = item.find(name="div", class_="dp-img pic1").select("a")[0].get("title")
+            except Exception as e:
+                continue
+
+            try:
+                imgurl = item.find(name="div", class_="dp-img pic1").select("a img")[0].get("data-original")
+            except Exception as e:
+                continue
+
+            try:
+                eva = item.find(name="div", class_="promos").select("span")[0].text
+            except Exception as e:
+                continue
+
+            try:
+                pricenow = item.find(name="div", class_="bottom").find(name="span", class_="price").text
+            except Exception as e:
+                continue
+
+            try:
+                shop = item.find(name="div", class_="product-site").select("span")[0].text
+            except Exception as e:
+                continue
+
+            print(len(imgurl),len(href),len(title))
+            coms=(imgurl,href,title,pricenow,maxprice,maxdate,minprice,mindate,eva,shop,flag)
+            # print(flag, title, pricenow, maxprice,maxdate,minprice,mindate,eva, shop, href, imgurl)
+            searchcom.append(coms)
+        elif(before==flag):
+            # print("before==flag",before,flag)
+            continue
+        else:
+            # print("before!=flag", before, flag)
+            before=flag
+            num=0
+    print(searchcom)
+
+
+# jdfindurl("iphone11")
+hisprice("https://item.jd.com/100008348542.html")

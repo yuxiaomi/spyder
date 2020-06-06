@@ -1,0 +1,35 @@
+from flask import Flask
+from werkzeug.wsgi import DispatcherMiddleware
+from werkzeug.serving import run_simple
+
+app1=Flask("app01")
+app1.config['db']=123
+
+app2=Flask("app02")
+app2.config['db']=456
+
+@app1.route('/web')
+def web():
+    print('web')
+    return 'web'
+
+@app1.route('/news')
+def news():
+    print("news")
+    return 'news'
+
+@app2.route('/admin')
+def admin():
+    print('admin')
+    return 'admin'
+
+@app2.route('/article')
+def article():
+    print("article")
+    return 'article'
+
+
+app=DispatcherMiddleware(app1,{'/app2':app2,})
+
+if __name__=='__main__':
+    run_simple(hostname='127.0.0.1',port=8000,application=app)
